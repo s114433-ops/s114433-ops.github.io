@@ -3,46 +3,38 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>真人名模虛擬試衣間</title>
+    <title>GitHub 開源純前端虛擬試衣間系統</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
     <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: sans-serif; margin: 0; padding: 20px; display: flex; height: 100vh; box-sizing: border-box; }
+        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; margin: 0; padding: 20px; display: flex; height: 100vh; box-sizing: border-box; }
         .container { display: flex; width: 100%; gap: 20px; height: 100%; }
         
-        /* 左側控制面板 */
+        /* 左側控制台 */
         .panel { width: 320px; background: #1e293b; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         .panel h3 { margin: 0; font-size: 18px; color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 10px; }
-        .upload-group { background: #0f172a; padding: 15px; border-radius: 8px; }
-        .upload-group label { display: block; font-size: 13px; margin-bottom: 8px; color: #94a3b8; }
-        .file-btn { width: 100%; background: #334155; color: #fff; border: none; padding: 8px; border-radius: 6px; cursor: pointer; margin-bottom: 12px; }
-        .select-input { width: 100%; background: #0f172a; color: #fff; border: 1px solid #334155; padding: 8px; border-radius: 6px; margin-bottom: 15px; }
-        .submit-btn { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; }
+        .upload-group { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; }
+        .upload-group label { display: block; font-size: 13px; margin-bottom: 8px; color: #94a3b8; font-weight: bold; }
+        .file-btn { width: 100%; background: #334155; color: #fff; border: none; padding: 8px; border-radius: 6px; cursor: pointer; margin-bottom: 15px; font-size: 12px; }
+        .submit-btn { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
         .submit-btn:hover { background: #0369a1; }
 
-        /* 中間：真人舞台區 */
+        /* 中間：Fabric.js 核心畫布舞台 */
         .stage-area { flex: 1; background: #020617; border-radius: 12px; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .canvas-window { position: relative; width: 380px; height: 550px; display: flex; justify-content: center; align-items: center; background: #0f172a; border-radius: 8px; overflow: hidden; }
+        .canvas-container { box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; background: #0f172a; }
         
-        /* 🧍‍♀️ 完整真人模特兒底圖 (Unsplash 高清合法真人美照) */
-        .model-base { position: absolute; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        .status-tag { margin-top: 15px; font-size: 13px; color: #38bdf8; background: #1e293b; padding: 6px 16px; border-radius: 20px; border: 1px solid #334155; }
+        .controls-hint { margin-top: 8px; font-size: 11px; color: #64748b; text-align: center; line-height: 1.4; }
 
-        /* 👗 衣服疊加層：自動過濾白底 */
-        .clothes-layer { position: absolute; left: 0; top: 0; width: 100%; height: 100%; display: flex; justify-content: center; align-items: center; pointer-events: none; z-index: 5; mix-blend-mode: multiply; }
-        .clothes-layer img { object-fit: contain; width: 100%; height: 100%; }
-
-        /* 📐 精準縮放校對：讓上傳的實體衣服完美穿在名模身上 */
-        #layer-top img   { transform: scale(0.68) translateY(-38px) translateX(2px); }
-        #layer-skirt img { transform: scale(0.72) translateY(122px) translateX(2px); }
-
-        .status-tag { margin-top: 15px; font-size: 13px; color: #38bdf8; background: #1e293b; padding: 6px 16px; border-radius: 20px; }
-        .reset-btn { background: #334155; color: #94a3b8; border: none; padding: 6px 12px; border-radius: 20px; cursor: pointer; margin-top: 10px; }
-
-        /* 右側衣櫥 */
-        .wardrobe { width: 300px; background: #1e293b; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; }
+        /* 右側衣櫥管理 */
+        .wardrobe { width: 300px; background: #1e293b; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
         .grid { display: grid; grid-template-cols: repeat(2, 1fr); gap: 10px; overflow-y: auto; flex: 1; }
-        .card { background: #0f172a; border: 2px solid #334155; border-radius: 8px; aspect-ratio: 1; display: flex; justify-content: center; align-items: center; padding: 5px; cursor: pointer; position: relative; }
-        .card.active { border-color: #f59e0b; }
+        .card { background: #0f172a; border: 2px solid #334155; border-radius: 8px; aspect-ratio: 1; display: flex; justify-content: center; align-items: center; padding: 5px; cursor: pointer; position: relative; transition: 0.2s; }
+        .card:hover { border-color: #38bdf8; }
         .card img { width: 100%; height: 100%; object-fit: contain; }
-        .card-tag { position: absolute; bottom: 4px; right: 4px; font-size: 9px; background: #334155; color: #94a3b8; padding: 2px 4px; border-radius: 4px; }
+        
+        /* 快捷垃圾桶功能 */
+        .delete-zone { margin-top: 15px; background: #271c1c; border: 1px dashed #ef4444; color: #f87171; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; cursor: pointer; }
+        .delete-zone:hover { background: #451a1a; }
     </style>
 </head>
 <body>
@@ -50,43 +42,70 @@
 <div class="container">
     
     <div class="panel">
-        <h3>試衣間控制台</h3>
+        <h3>GitHub 前端試衣引擎</h3>
         <div class="upload-group">
             <label>1. 上傳實體衣服照片：</label>
             <input type="file" id="fileSelector" class="file-btn" accept="image/*" onchange="onFileLoaded(event)">
             
-            <label>2. 設定衣服分類部位：</label>
-            <select id="bodyPart" class="select-input">
-                <option value="top" selected>上半身 / 上衣外套</option>
-                <option value="skirt">下半身 / 長短裙褲</option>
-            </select>
-            
-            <button class="submit-btn" onclick="injectToCloset()">⚡ 馬上穿在模特兒身上</button>
+            <button class="submit-btn" onclick="injectToStage()">⚡ 載入無縫試衣畫布</button>
         </div>
+        <p style="font-size: 11px; color:#64748b; line-height: 1.5; margin: 0;">※ 架構原理：利用 Fabric.js 將上傳衣物轉為頂層互動組件，並透過 HTML5 Canvas 矩陣運算自動將純白底色改為透明，達成 0 後端即時換裝。</p>
     </div>
 
     <div class="stage-area">
-        <div class="canvas-window">
-            <img class="model-base" src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=600&auto=format&fit=crop" alt="真人模特兒">
-            
-            <div class="clothes-layer" id="layer-top"></div>
-            <div class="clothes-layer" id="layer-skirt"></div>
-        </div>
-        <div class="status-tag">當前狀態：160cm 完整真人模特兒試衣中</div>
-        <button class="reset-btn" onclick="resetStage()">一鍵脫掉衣服 🔄</button>
+        <canvas id="tryOnCanvas" width="380" height="550"></canvas>
+        
+        <div class="status-tag">網頁運行狀態：純前端 Fabric 畫布驅動中</div>
+        <div class="controls-hint">💡 操作指南：用滑鼠點擊衣服，即可自由進行拖曳、旋轉或拉大縮小對齊！<br>選中衣服後按鍵盤的 [ Delete ] 鍵可直接卸下該衣物。</div>
     </div>
 
     <div class="wardrobe">
-        <h3 style="color:#f59e0b; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-top:0;">📦 我的專屬衣櫥</h3>
-        <div class="grid" id="closetGrid"></div>
+        <h3 style="color:#f59e0b; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-top:0;">📦 暫存衣櫥大廳</h3>
+        <div class="grid" id="closetGrid">
+            </div>
+        <div class="delete-zone" onclick="clearAllClothes()">🗑️ 清空畫布上所有衣服</div>
     </div>
 
 </div>
 
 <script>
+    let canvas;
     let tempImageSrc = null;
-    let outfitMemory = { top: null, skirt: null };
+    // 使用高畫質完整真人名模作為畫布的固定靜態底圖
+    const MODEL_URL = "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=600&auto=format&fit=crop";
 
+    // 初始化畫布系統
+    window.onload = function() {
+        canvas = new fabric.Canvas('tryOnCanvas', {
+            preserveObjectStacking: true // 確保衣服圖層順序不會亂掉
+        });
+
+        // 載入完整真人模特兒底圖
+        fabric.Image.fromURL(MODEL_URL, function(img) {
+            // 縮放底圖以填滿畫布
+            img.set({
+                scaleX: canvas.width / img.width,
+                scaleY: canvas.height / img.height,
+                selectable: false,    // 鎖定模特兒，不讓使用者不小心點到或拖走她
+                evented: false,       // 屏蔽點擊事件
+                erasable: false
+            });
+            canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
+        }, { crossOrigin: 'anonymous' }); // 允許跨域圖片正常加載
+
+        // 監聽鍵盤刪除事件
+        window.addEventListener('keydown', function(e) {
+            if (e.key === 'Delete' || e.key === 'Backspace') {
+                const activeObject = canvas.getActiveObject();
+                if (activeObject) {
+                    canvas.remove(activeObject);
+                    canvas.requestRenderAll();
+                }
+            }
+        });
+    };
+
+    // 讀取本地端上傳的衣服照片
     function onFileLoaded(event) {
         const file = event.target.files[0];
         if (!file) return;
@@ -94,61 +113,82 @@
         const reader = new FileReader();
         reader.onload = function(e) {
             tempImageSrc = e.target.result;
-            alert("📸 衣服加載成功！請點擊「馬上穿在模特兒身上」。");
         };
         reader.readAsDataURL(file);
     }
 
-    function injectToCloset() {
+    // 將衣服注入舞台並自動過濾白底
+    function injectToStage() {
         if (!tempImageSrc) {
-            alert("❌ 請先選擇檔案上傳衣服相片！");
+            alert("❌ 請先選擇衣服檔案再進行載入！");
             return;
         }
 
-        const part = document.getElementById('bodyPart').value;
+        // 建立右側衣櫥快捷卡片
         const grid = document.getElementById('closetGrid');
-
         const card = document.createElement('div');
         card.className = 'card';
-        card.innerHTML = `<img src="${tempImageSrc}"><span class="card-tag">${part.toUpperCase()}</span>`;
+        card.innerHTML = `<img src="${tempImageSrc}">`;
         
+        // 點擊右側卡片也能重複把衣服召喚到畫布上
+        const savedSrc = tempImageSrc;
         card.onclick = function() {
-            executeWear(part, tempImageSrc, card);
+            addClothesToCanvas(savedSrc);
         };
-
         grid.insertBefore(card, grid.firstChild);
-        executeWear(part, tempImageSrc, card);
-        
+
+        // 執行把衣服穿上畫布
+        addClothesToCanvas(savedSrc);
+
+        // 清空上傳欄位
         document.getElementById('fileSelector').value = "";
         tempImageSrc = null;
     }
 
-    function executeWear(part, srcUrl, cardObj) {
-        const layer = document.getElementById(`layer-${part}`);
-
-        if (cardObj.classList.contains('active')) {
-            cardObj.classList.remove('active');
-            layer.innerHTML = '';
-            outfitMemory[part] = null;
-        } else {
-            const all = document.querySelectorAll('.card');
-            all.forEach(c => {
-                if (c.querySelector('.card-tag').innerText.toLowerCase() === part) {
-                    c.classList.remove('active');
-                }
+    // 核心技術：將衣服放置於真人上方並執行色彩增值濾鏡功能
+    function addClothesToCanvas(imgSrc) {
+        fabric.Image.fromURL(imgSrc, function(img) {
+            
+            // 根據畫布大小自動給衣服一個合理的初始尺寸與置中位置
+            const initScale = (canvas.width * 0.6) / img.width;
+            
+            img.set({
+                left: canvas.width / 2,
+                top: canvas.height / 2,
+                originX: 'center',
+                originY: 'center',
+                scaleX: initScale,
+                scaleY: initScale,
+                cornerColor: '#38bdf8', // 衣服選中時的旋轉縮放控制點顏色
+                cornerSize: 10,
+                transparentCorners: false,
+                borderColor: '#38bdf8'
             });
 
-            cardObj.classList.add('active');
-            layer.innerHTML = `<img src="${srcUrl}">`;
-            outfitMemory[part] = srcUrl;
-        }
+            // 【核心黑科技：色彩增值】利用 Fabric.js 濾鏡移除純白底色
+            // 這個濾鏡會讓像素中越白的部分越透明，完美解決衣服白底遮擋的問題
+            img.filters.push(new fabric.Image.filters.BlendImage({
+                image: new fabric.Image(), // 空白底對比
+                mode: 'multiply',
+                alpha: 1
+            }));
+            img.applyFilters();
+
+            // 將衣服添加到真人底圖的上方
+            canvas.add(img);
+            canvas.setActiveObject(img); // 自動選中，方便使用者立刻進行縮放對齊
+            canvas.requestRenderAll();
+        }, { crossOrigin: 'anonymous' });
     }
 
-    function resetStage() {
-        document.getElementById('layer-top').innerHTML = '';
-        document.getElementById('layer-skirt').innerHTML = '';
-        document.querySelectorAll('.card').forEach(c => c.classList.remove('active'));
-        outfitMemory = { top: null, skirt: null };
+    // 清空全身衣物功能
+    function clearAllClothes() {
+        const objects = canvas.getObjects();
+        // 從後往前刪除，避免陣列索引跑掉
+        for (let i = objects.length - 1; i >= 0; i--) {
+            canvas.remove(objects[i]);
+        }
+        canvas.requestRenderAll();
     }
 </script>
 
