@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的開源純前端西洋棋網站</title>
+    <title>我的開源純前端西洋棋網站 (修復版)</title>
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
-    
     <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
 
     <style>
@@ -16,10 +15,8 @@
         h1 { color: #fff; margin-bottom: 5px; font-size: 24px; }
         .subtitle { color: #7c7c7c; margin-bottom: 20px; font-size: 14px; }
         
-        /* 棋盤容器 */
         #myBoard { width: 480px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border-radius: 4px; overflow: hidden; }
         
-        /* 狀態控制面板 */
         .status-panel { width: 480px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; background: #262421; padding: 12px; border-radius: 6px; box-sizing: border-box; }
         .status { font-weight: bold; color: #f0d9b5; font-size: 14px; }
         .btn { background: #312e2b; color: #ccc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
@@ -40,12 +37,11 @@
 
 <script>
     let board = null;
-    let game = new Chess(); // 初始化 Chess.js 規則大腦
+    let game = new Chess();
     const statusEl = document.getElementById('status');
 
     // 棋子被滑鼠抓起時的判斷
     function onDragStart(source, piece, position, orientation) {
-        // 如果遊戲已經結束，或者抓了對方顏色的棋子，就不能拖動
         if (game.game_over()) return false;
 
         // 白方回合只能抓白棋 (w)，黑方回合只能抓黑棋 (b)
@@ -57,25 +53,22 @@
 
     // 棋子被放下（移動）時的判斷
     function onDrop(source, target) {
-        // 檢查這一動是否符合西洋棋規則
         let move = game.move({
             from: source,
             to: target,
-            promotion: 'q' // 兵走到對底線時，預設自動升變為皇后 (Queen)
+            promotion: 'q' // 預設自動升變為皇后
         });
 
-        // 如果 move 回傳 null，代表是不合法的走法（例如主教穿過棋子、王自己撞將軍），棋子會自動彈回原位
+        // 走法不合法時彈回
         if (move === null) return 'snapback';
 
         updateStatus();
     }
 
-    // 當棋子移動動畫結束後，重新整理棋盤狀態
     function onSnapEnd() {
         board.position(game.fen());
     }
 
-    // 更新遊戲狀態與文字提示（王車易位、被將軍、和棋、國王駕崩等判斷）
     function updateStatus() {
         let status = '';
         let moveColor = game.turn() === 'b' ? '黑方' : '白方';
@@ -94,23 +87,28 @@
         statusEl.innerText = status;
     }
 
-    // 重新開局
     function resetGame() {
         game.reset();
         board.start();
         updateStatus();
     }
 
-    // 棋盤設定參數
+    // 🔴 【核心修復機制】強制將棋子圖片導向雲端 CDN，徹底解決本地開檔破圖問題！
+    function pieceTheme(piece) {
+        // piece 會傳入像 'wP' (白兵), 'bK' (黑王) 這樣的代號
+        // 我們把它對應到 cdnjs 上的標準維基百科棋子風格圖片
+        return 'https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/img/chesspieces/wikipedia/' + piece + '.png';
+    }
+
     const config = {
-        draggable: true,         // 允許滑鼠拖拽棋子
-        position: 'start',        // 棋子初始標準排列
-        onDragStart: onDragStart, // 綁定抓起事件
-        onDrop: onDrop,           // 綁定放下事件
-        onSnapEnd: onSnapEnd      // 綁定動畫修正
+        draggable: true,
+        position: 'start',
+        onDragStart: onDragStart,
+        onDrop: onDrop,
+        onSnapEnd: onSnapEnd,
+        pieceTheme: pieceTheme // 注入我們修復後的圖片路徑邏輯
     };
 
-    // 啟動 Chessboard.js 棋盤
     board = Chessboard('myBoard', config);
     updateStatus();
 </script>
