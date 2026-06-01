@@ -3,193 +3,116 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GitHub 開源純前端虛擬試衣間系統</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/fabric.js/5.3.1/fabric.min.js"></script>
+    <title>我的開源純前端西洋棋網站</title>
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
+
     <style>
-        body { background-color: #0f172a; color: #f8fafc; font-family: system-ui, sans-serif; margin: 0; padding: 20px; display: flex; height: 100vh; box-sizing: border-box; }
-        .container { display: flex; width: 100%; gap: 20px; height: 100%; }
+        body { background-color: #161512; color: #bababa; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
+        h1 { color: #fff; margin-bottom: 5px; font-size: 24px; }
+        .subtitle { color: #7c7c7c; margin-bottom: 20px; font-size: 14px; }
         
-        /* 左側控制台 */
-        .panel { width: 320px; background: #1e293b; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 15px; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-        .panel h3 { margin: 0; font-size: 18px; color: #38bdf8; border-bottom: 1px solid #334155; padding-bottom: 10px; }
-        .upload-group { background: #0f172a; padding: 15px; border-radius: 8px; border: 1px solid #334155; }
-        .upload-group label { display: block; font-size: 13px; margin-bottom: 8px; color: #94a3b8; font-weight: bold; }
-        .file-btn { width: 100%; background: #334155; color: #fff; border: none; padding: 8px; border-radius: 6px; cursor: pointer; margin-bottom: 15px; font-size: 12px; }
-        .submit-btn { width: 100%; background: #0284c7; color: white; border: none; padding: 12px; border-radius: 6px; font-weight: bold; cursor: pointer; font-size: 14px; transition: 0.2s; }
-        .submit-btn:hover { background: #0369a1; }
-
-        /* 中間：Fabric.js 核心畫布舞台 */
-        .stage-area { flex: 1; background: #020617; border-radius: 12px; position: relative; display: flex; flex-direction: column; justify-content: center; align-items: center; }
-        .canvas-container { box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-radius: 8px; overflow: hidden; background: #0f172a; }
+        /* 棋盤容器 */
+        #myBoard { width: 480px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border-radius: 4px; overflow: hidden; }
         
-        .status-tag { margin-top: 15px; font-size: 13px; color: #38bdf8; background: #1e293b; padding: 6px 16px; border-radius: 20px; border: 1px solid #334155; }
-        .controls-hint { margin-top: 8px; font-size: 11px; color: #64748b; text-align: center; line-height: 1.4; }
-
-        /* 右側衣櫥管理 */
-        .wardrobe { width: 300px; background: #1e293b; border-radius: 12px; padding: 20px; display: flex; flex-direction: column; box-shadow: 0 4px 20px rgba(0,0,0,0.3); }
-        .grid { display: grid; grid-template-cols: repeat(2, 1fr); gap: 10px; overflow-y: auto; flex: 1; }
-        .card { background: #0f172a; border: 2px solid #334155; border-radius: 8px; aspect-ratio: 1; display: flex; justify-content: center; align-items: center; padding: 5px; cursor: pointer; position: relative; transition: 0.2s; }
-        .card:hover { border-color: #38bdf8; }
-        .card img { width: 100%; height: 100%; object-fit: contain; }
-        
-        /* 快捷垃圾桶功能 */
-        .delete-zone { margin-top: 15px; background: #271c1c; border: 1px dashed #ef4444; color: #f87171; padding: 12px; border-radius: 8px; text-align: center; font-size: 13px; font-weight: bold; cursor: pointer; }
-        .delete-zone:hover { background: #451a1a; }
+        /* 狀態控制面板 */
+        .status-panel { width: 480px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; background: #262421; padding: 12px; border-radius: 6px; box-sizing: border-box; }
+        .status { font-weight: bold; color: #f0d9b5; font-size: 14px; }
+        .btn { background: #312e2b; color: #ccc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
+        .btn:hover { background: #45413c; color: #fff; }
     </style>
 </head>
 <body>
 
-<div class="container">
-    
-    <div class="panel">
-        <h3>GitHub 前端試衣引擎</h3>
-        <div class="upload-group">
-            <label>1. 上傳實體衣服照片：</label>
-            <input type="file" id="fileSelector" class="file-btn" accept="image/*" onchange="onFileLoaded(event)">
-            
-            <button class="submit-btn" onclick="injectToStage()">⚡ 載入無縫試衣畫布</button>
-        </div>
-        <p style="font-size: 11px; color:#64748b; line-height: 1.5; margin: 0;">※ 架構原理：利用 Fabric.js 將上傳衣物轉為頂層互動組件，並透過 HTML5 Canvas 矩陣運算自動將純白底色改為透明，達成 0 後端即時換裝。</p>
-    </div>
+    <h1>♟️ 我的專屬西洋棋俱樂部</h1>
+    <div class="subtitle">純前端 JavaScript 引擎驅動 · 支援全套官方規則判斷</div>
 
-    <div class="stage-area">
-        <canvas id="tryOnCanvas" width="380" height="550"></canvas>
-        
-        <div class="status-tag">網頁運行狀態：純前端 Fabric 畫布驅動中</div>
-        <div class="controls-hint">💡 操作指南：用滑鼠點擊衣服，即可自由進行拖曳、旋轉或拉大縮小對齊！<br>選中衣服後按鍵盤的 [ Delete ] 鍵可直接卸下該衣物。</div>
-    </div>
+    <div id="myBoard"></div>
 
-    <div class="wardrobe">
-        <h3 style="color:#f59e0b; border-bottom: 1px solid #334155; padding-bottom: 10px; margin-top:0;">📦 暫存衣櫥大廳</h3>
-        <div class="grid" id="closetGrid">
-            </div>
-        <div class="delete-zone" onclick="clearAllClothes()">🗑️ 清空畫布上所有衣服</div>
+    <div class="status-panel">
+        <div class="status" id="status">輪到白方進攻...</div>
+        <button class="btn" onclick="resetGame()">重新開局 🔄</button>
     </div>
-
-</div>
 
 <script>
-    let canvas;
-    let tempImageSrc = null;
-    // 使用高畫質完整真人名模作為畫布的固定靜態底圖
-    const MODEL_URL = "https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=600&auto=format&fit=crop";
+    let board = null;
+    let game = new Chess(); // 初始化 Chess.js 規則大腦
+    const statusEl = document.getElementById('status');
 
-    // 初始化畫布系統
-    window.onload = function() {
-        canvas = new fabric.Canvas('tryOnCanvas', {
-            preserveObjectStacking: true // 確保衣服圖層順序不會亂掉
+    // 棋子被滑鼠抓起時的判斷
+    function onDragStart(source, piece, position, orientation) {
+        // 如果遊戲已經結束，或者抓了對方顏色的棋子，就不能拖動
+        if (game.game_over()) return false;
+
+        // 白方回合只能抓白棋 (w)，黑方回合只能抓黑棋 (b)
+        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
+            (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
+            return false;
+        }
+    }
+
+    // 棋子被放下（移動）時的判斷
+    function onDrop(source, target) {
+        // 檢查這一動是否符合西洋棋規則
+        let move = game.move({
+            from: source,
+            to: target,
+            promotion: 'q' // 兵走到對底線時，預設自動升變為皇后 (Queen)
         });
 
-        // 載入完整真人模特兒底圖
-        fabric.Image.fromURL(MODEL_URL, function(img) {
-            // 縮放底圖以填滿畫布
-            img.set({
-                scaleX: canvas.width / img.width,
-                scaleY: canvas.height / img.height,
-                selectable: false,    // 鎖定模特兒，不讓使用者不小心點到或拖走她
-                evented: false,       // 屏蔽點擊事件
-                erasable: false
-            });
-            canvas.setBackgroundImage(img, canvas.renderAll.bind(canvas));
-        }, { crossOrigin: 'anonymous' }); // 允許跨域圖片正常加載
+        // 如果 move 回傳 null，代表是不合法的走法（例如主教穿過棋子、王自己撞將軍），棋子會自動彈回原位
+        if (move === null) return 'snapback';
 
-        // 監聽鍵盤刪除事件
-        window.addEventListener('keydown', function(e) {
-            if (e.key === 'Delete' || e.key === 'Backspace') {
-                const activeObject = canvas.getActiveObject();
-                if (activeObject) {
-                    canvas.remove(activeObject);
-                    canvas.requestRenderAll();
-                }
+        updateStatus();
+    }
+
+    // 當棋子移動動畫結束後，重新整理棋盤狀態
+    function onSnapEnd() {
+        board.position(game.fen());
+    }
+
+    // 更新遊戲狀態與文字提示（王車易位、被將軍、和棋、國王駕崩等判斷）
+    function updateStatus() {
+        let status = '';
+        let moveColor = game.turn() === 'b' ? '黑方' : '白方';
+
+        if (game.in_checkmate()) {
+            status = `遊戲結束！${moveColor} 被將死 (Checkmate) 💀`;
+        } else if (game.in_draw()) {
+            status = '遊戲結束！雙方和棋 (Draw) 🤝';
+        } else {
+            status = `輪到【${moveColor}】進攻`;
+            if (game.in_check()) {
+                status += ' ⚠️ ( 被將軍 Check! )';
             }
-        });
+        }
+
+        statusEl.innerText = status;
+    }
+
+    // 重新開局
+    function resetGame() {
+        game.reset();
+        board.start();
+        updateStatus();
+    }
+
+    // 棋盤設定參數
+    const config = {
+        draggable: true,         // 允許滑鼠拖拽棋子
+        position: 'start',        // 棋子初始標準排列
+        onDragStart: onDragStart, // 綁定抓起事件
+        onDrop: onDrop,           // 綁定放下事件
+        onSnapEnd: onSnapEnd      // 綁定動畫修正
     };
 
-    // 讀取本地端上傳的衣服照片
-    function onFileLoaded(event) {
-        const file = event.target.files[0];
-        if (!file) return;
-
-        const reader = new FileReader();
-        reader.onload = function(e) {
-            tempImageSrc = e.target.result;
-        };
-        reader.readAsDataURL(file);
-    }
-
-    // 將衣服注入舞台並自動過濾白底
-    function injectToStage() {
-        if (!tempImageSrc) {
-            alert("❌ 請先選擇衣服檔案再進行載入！");
-            return;
-        }
-
-        // 建立右側衣櫥快捷卡片
-        const grid = document.getElementById('closetGrid');
-        const card = document.createElement('div');
-        card.className = 'card';
-        card.innerHTML = `<img src="${tempImageSrc}">`;
-        
-        // 點擊右側卡片也能重複把衣服召喚到畫布上
-        const savedSrc = tempImageSrc;
-        card.onclick = function() {
-            addClothesToCanvas(savedSrc);
-        };
-        grid.insertBefore(card, grid.firstChild);
-
-        // 執行把衣服穿上畫布
-        addClothesToCanvas(savedSrc);
-
-        // 清空上傳欄位
-        document.getElementById('fileSelector').value = "";
-        tempImageSrc = null;
-    }
-
-    // 核心技術：將衣服放置於真人上方並執行色彩增值濾鏡功能
-    function addClothesToCanvas(imgSrc) {
-        fabric.Image.fromURL(imgSrc, function(img) {
-            
-            // 根據畫布大小自動給衣服一個合理的初始尺寸與置中位置
-            const initScale = (canvas.width * 0.6) / img.width;
-            
-            img.set({
-                left: canvas.width / 2,
-                top: canvas.height / 2,
-                originX: 'center',
-                originY: 'center',
-                scaleX: initScale,
-                scaleY: initScale,
-                cornerColor: '#38bdf8', // 衣服選中時的旋轉縮放控制點顏色
-                cornerSize: 10,
-                transparentCorners: false,
-                borderColor: '#38bdf8'
-            });
-
-            // 【核心黑科技：色彩增值】利用 Fabric.js 濾鏡移除純白底色
-            // 這個濾鏡會讓像素中越白的部分越透明，完美解決衣服白底遮擋的問題
-            img.filters.push(new fabric.Image.filters.BlendImage({
-                image: new fabric.Image(), // 空白底對比
-                mode: 'multiply',
-                alpha: 1
-            }));
-            img.applyFilters();
-
-            // 將衣服添加到真人底圖的上方
-            canvas.add(img);
-            canvas.setActiveObject(img); // 自動選中，方便使用者立刻進行縮放對齊
-            canvas.requestRenderAll();
-        }, { crossOrigin: 'anonymous' });
-    }
-
-    // 清空全身衣物功能
-    function clearAllClothes() {
-        const objects = canvas.getObjects();
-        // 從後往前刪除，避免陣列索引跑掉
-        for (let i = objects.length - 1; i >= 0; i--) {
-            canvas.remove(objects[i]);
-        }
-        canvas.requestRenderAll();
-    }
+    // 啟動 Chessboard.js 棋盤
+    board = Chessboard('myBoard', config);
+    updateStatus();
 </script>
 
 </body>
