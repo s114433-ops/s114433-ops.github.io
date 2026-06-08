@@ -3,115 +3,571 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>我的開源純前端西洋棋網站 (修復版)</title>
-    
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.css">
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/chessboard-1.0.0.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/chess.js/0.10.3/chess.min.js"></script>
-
+    <title>死線緊急度計算</title>
+    <script src="https://cdn.tailwindcss.com"></script>
     <style>
-        body { background-color: #161512; color: #bababa; font-family: system-ui, sans-serif; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; margin: 0; }
-        h1 { color: #fff; margin-bottom: 5px; font-size: 24px; }
-        .subtitle { color: #7c7c7c; margin-bottom: 20px; font-size: 14px; }
-        
-        #myBoard { width: 480px; box-shadow: 0 8px 24px rgba(0,0,0,0.6); border-radius: 4px; overflow: hidden; }
-        
-        .status-panel { width: 480px; margin-top: 20px; display: flex; justify-content: space-between; align-items: center; background: #262421; padding: 12px; border-radius: 6px; box-sizing: border-box; }
-        .status { font-weight: bold; color: #f0d9b5; font-size: 14px; }
-        .btn { background: #312e2b; color: #ccc; border: none; padding: 8px 16px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; transition: 0.2s; }
-        .btn:hover { background: #45413c; color: #fff; }
+        /* ==========================================================================
+           3D 滾輪轉軸核心滾動樣式
+           ========================================================================== */
+        .picker-wrapper {
+            position: relative;
+            height: 140px; /* 預留上方 20px 欄位文字空間 + 120px 滾輪 */
+            background-color: #030712;
+            border-radius: 0.5rem;
+            overflow: hidden;
+        }
+        .picker-column-header {
+            position: absolute;
+            top: 4px; left: 0; right: 0; height: 16px;
+            display: flex;
+            justify-content: space-around;
+            font-size: 11px;
+            color: #6b7280;
+            z-index: 30;
+            pointer-events: none;
+        }
+        .picker-container {
+            height: 120px; /* 三行高度 (每行 40px) */
+            margin-top: 20px; /* 錯開上方標頭，維持內容置中 */
+            overflow-y: scroll;
+            scroll-snap-type: y mandatory;
+            scrollbar-width: none;
+            user-select: none;
+            cursor: grab;
+            position: relative;
+            z-index: 10;
+        }
+        .picker-container:active {
+            cursor: grabbing;
+        }
+        .picker-container::-webkit-scrollbar {
+            display: none;
+        }
+        .picker-item {
+            height: 40px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            scroll-snap-align: center;
+            transition: all 0.15s ease;
+            pointer-events: none;
+        }
+        /* 滾輪視覺遮罩：上下黑底漸層避開正中央 */
+        .picker-mask {
+            position: absolute;
+            top: 20px; left: 0; right: 0; bottom: 0;
+            background: linear-gradient(to bottom, rgba(3,7,18,0.92) 0%, rgba(3,7,18,0) 30%, rgba(3,7,18,0) 70%, rgba(3,7,18,0.92) 100%);
+            pointer-events: none;
+            z-index: 20;
+        }
+        /* 格線指示器：完美上下夾擊中間的 40px 區域 */
+        .picker-indicator {
+            position: absolute;
+            top: 60px; /* 20px標題 + 40px第一行 = 60px起點 */
+            left: 0; right: 0; height: 40px;
+            border-top: 2px solid #3b82f6; /* 科技藍對齊格線 */
+            border-bottom: 2px solid #3b82f6;
+            background-color: rgba(59, 130, 246, 0.08);
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* ==========================================================================
+           ⭐ 自訂紅色緊急度「心跳微放大」動畫效果 (取代原本的淡入淡出)
+           ========================================================================== */
+        @keyframes pulse-scale {
+            0%, 100% {
+                transform: scale(1); /* 原大小 */
+            }
+            50% {
+                transform: scale(1.15); /* 稍微放大 15%，維持高飽和紅色不變淡 */
+            }
+        }
+        .animate-pulse-scale {
+            display: inline-block; /* 確保 transform 縮放效果能正常作用 */
+            animation: pulse-scale 1.5s infinite ease-in-out;
+            transform-origin: center right; /* 靠右對齊放大，避免擠壓到旁邊的文字佈局 */
+        }
     </style>
 </head>
-<body>
+<body class="bg-gray-900 text-gray-100 min-h-screen p-4 md:p-8">
 
-    <h1>♟️ 我的專屬西洋棋俱樂部</h1>
-    <div class="subtitle">純前端 JavaScript 引擎驅動 · 支援全套官方規則判斷</div>
+    <div class="max-w-5xl mx-auto">
+        <header class="mb-8 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+            <div>
+                <h1 class="text-3xl font-bold text-white tracking-wide">死線戰士の救星</h1>
+                <p class="text-sm text-gray-400 mt-1">任務緊急度排行</p>
+            </div>
+            <button onclick="openAddModal()" class="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg font-medium shadow-lg transition-all">
+                + 新增任務項目
+            </button>
+        </header>
 
-    <div id="myBoard"></div>
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+            <div class="lg:col-span-2 space-y-4">
+                <h2 class="text-xl font-semibold text-gray-200 flex items-center gap-2">
+                    📋 任務清單 <span class="text-xs font-normal text-gray-400">（24小時內特急保護，依最終百分比排序）</span>
+                </h2>
+                <div id="taskList" class="space-y-3"></div>
+            </div>
 
-    <div class="status-panel">
-        <div class="status" id="status">輪到白方進攻...</div>
-        <button class="btn" onclick="resetGame()">重新開局 🔄</button>
+            <div class="bg-gray-800 p-6 rounded-xl border border-gray-700 h-fit">
+                <h2 class="text-xl font-semibold text-gray-200 mb-4">🏷️ 標籤管理</h2>
+                <div class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-1">新增標籤名稱</label>
+                        <input type="text" id="newTagName" placeholder="例如：微積分、期末報告" class="w-full bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-gray-400 mb-2">選擇顏色</label>
+                        <div class="flex gap-2" id="colorPicker">
+                            <button onclick="selectTagColor('#FF4D4F')" class="w-8 h-8 rounded-full border-2 border-white" style="background-color: #FF4D4F;"></button>
+                            <button onclick="selectTagColor('#FFA940')" class="w-8 h-8 rounded-full border-2 border-transparent" style="background-color: #FFA940;"></button>
+                            <button onclick="selectTagColor('#FFEC3D')" class="w-8 h-8 rounded-full border-2 border-transparent" style="background-color: #FFEC3D;"></button>
+                            <button onclick="selectTagColor('#73D13D')" class="w-8 h-8 rounded-full border-2 border-transparent" style="background-color: #73D13D;"></button>
+                            <button onclick="selectTagColor('#40A9FF')" class="w-8 h-8 rounded-full border-2 border-transparent" style="background-color: #40A9FF;"></button>
+                            <button onclick="selectTagColor('#9254DE')" class="w-8 h-8 rounded-full border-2 border-transparent" style="background-color: #9254DE;"></button>
+                        </div>
+                    </div>
+                    <button onclick="addCustomTag()" class="w-full bg-gray-700 hover:bg-gray-600 text-white py-2 rounded-lg text-sm font-medium transition">建立標籤</button>
+                    <hr class="border-gray-700 my-4">
+                    <div id="tagContainer" class="flex flex-wrap gap-2"></div>
+                </div>
+            </div>
+        </div>
     </div>
 
-<script>
-    let board = null;
-    let game = new Chess();
-    const statusEl = document.getElementById('status');
+    <div id="taskModal" class="fixed inset-0 bg-black/60 backdrop-blur-sm hidden items-center justify-center p-4 z-50">
+        <div class="bg-gray-800 w-full max-w-2xl rounded-2xl border border-gray-700 shadow-2xl p-6 overflow-y-auto max-h-[90vh]">
+            <div class="flex justify-between items-center mb-6">
+                <h3 id="modalTitle" class="text-xl font-bold text-white">建立新作業/報告</h3>
+                <button onclick="toggleModal(false)" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
 
-    // 棋子被滑鼠抓起時的判斷
-    function onDragStart(source, piece, position, orientation) {
-        if (game.game_over()) return false;
+            <div class="space-y-5">
+                <input type="hidden" id="editingTaskId" value="">
 
-        // 白方回合只能抓白棋 (w)，黑方回合只能抓黑棋 (b)
-        if ((game.turn() === 'w' && piece.search(/^b/) !== -1) ||
-            (game.turn() === 'b' && piece.search(/^w/) !== -1)) {
-            return false;
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-1">項目名稱</label>
+                    <input type="text" id="taskTitle" placeholder="請輸入作業或報告名稱..." class="w-full bg-gray-700 border border-gray-600 rounded-lg px-4 py-2.5 text-white focus:outline-none focus:border-blue-500">
+                </div>
+
+                <div>
+                    <label class="block text-sm font-medium text-gray-400 mb-2">選擇分類標籤</label>
+                    <div id="modalTagSelect" class="flex flex-wrap gap-2"></div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700">
+                        <span class="block text-sm font-medium text-blue-400 mb-2">⏰ 截止時間設定 (請置於藍格線內)</span>
+                        <div class="relative picker-wrapper">
+                            <div class="picker-column-header">
+                                <div class="w-1/4 text-center">月</div>
+                                <div class="w-1/4 text-center">日</div>
+                                <div class="w-1/4 text-center">時</div>
+                                <div class="w-1/4 text-center">分</div>
+                            </div>
+                            
+                            <div class="picker-indicator"></div>
+                            <div class="picker-mask"></div>
+                            
+                            <div class="grid grid-cols-4 gap-1 h-full px-1">
+                                <div id="pickerMonth" class="picker-container"></div>
+                                <div id="pickerDay" class="picker-container"></div>
+                                <div id="pickerHour" class="picker-container"></div>
+                                <div id="pickerMin" class="picker-container"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-900/50 p-4 rounded-xl border border-gray-700 flex flex-col justify-between">
+                        <div>
+                            <span class="block text-sm font-medium text-amber-400 mb-2">🔥 重要程度權重</span>
+                            <p class="text-xs text-gray-400 mb-2">範圍 0.1 ~ 1.0，決定非急迫期之權重佔比</p>
+                        </div>
+                        <div class="relative picker-wrapper w-32 mx-auto">
+                            <div class="picker-column-header"><div class="w-full text-center">權重</div></div>
+                            <div class="picker-indicator"></div>
+                            <div class="picker-mask"></div>
+                            <div id="pickerWeight" class="picker-container"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="flex justify-end gap-3 pt-4 border-t border-gray-700">
+                    <button onclick="toggleModal(false)" class="px-4 py-2 text-gray-400 hover:text-white transition">取消</button>
+                    <button onclick="saveTask()" class="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium transition">確認儲存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let tags = JSON.parse(localStorage.getItem('task_tags')) || [
+            { id: 't1', text: '基本報告', color: '#40A9FF' },
+            { id: 't2', text: '急件作業', color: '#FF4D4F' },
+            { id: 't3', text: '段考', color: '#FFEC3D' }
+        ];
+        let tasks = JSON.parse(localStorage.getItem('task_items')) || [];
+        let selectedColor = '#FF4D4F';
+        let activeSelectedTagId = null;
+
+        // ==========================================================================
+        // 核心滾輪初始化與取值邏輯
+        // ==========================================================================
+        function initPickers() {
+            const renderScrollItems = (elId, start, end, step = 1, isFloat = false) => {
+                const container = document.getElementById(elId);
+                
+                let html = '<div class="picker-item text-transparent" data-val="none"></div>'; 
+                for(let i = start; i <= end; i += step) {
+                    let val = isFloat ? Math.round(i * 10) / 10 : i;
+                    let displayVal = isFloat ? val.toFixed(1) : String(val).padStart(2, '0');
+                    html += `<div class="picker-item text-gray-500 font-mono text-base" data-val="${val}">${displayVal}</div>`;
+                }
+                html += '<div class="picker-item text-transparent" data-val="none"></div>';
+                container.innerHTML = html;
+                
+                let isDown = false; let startY; let scrollTop;
+                container.addEventListener('mousedown', (e) => {
+                    isDown = true; startY = e.pageY - container.offsetTop; scrollTop = container.scrollTop;
+                    container.style.scrollSnapType = 'none';
+                });
+                container.addEventListener('mouseleave', () => { if (isDown) { isDown = false; container.style.scrollSnapType = 'y mandatory'; } });
+                container.addEventListener('mouseup', () => { if (isDown) { isDown = false; container.style.scrollSnapType = 'y mandatory'; } });
+                container.addEventListener('mousemove', (e) => {
+                    if(!isDown) return;
+                    e.preventDefault();
+                    const y = e.pageY - container.offsetTop;
+                    const walk = (y - startY) * 1.5;
+                    container.scrollTop = scrollTop - walk;
+                });
+
+                container.addEventListener('scroll', () => {
+                    const items = container.querySelectorAll('.picker-item');
+                    const scrollCenter = container.scrollTop + 60; 
+                    items.forEach(item => {
+                        if(item.getAttribute('data-val') !== 'none') {
+                            const itemCenter = item.offsetTop + 20;
+                            if(Math.abs(scrollCenter - itemCenter) < 20) {
+                                item.className = "picker-item text-white text-xl font-black font-mono";
+                            } else {
+                                item.className = "picker-item text-gray-500 text-base font-mono";
+                            }
+                        }
+                    });
+                });
+            };
+
+            renderScrollItems('pickerMonth', 1, 12);
+            renderScrollItems('pickerDay', 1, 31);
+            renderScrollItems('pickerHour', 0, 23);
+            renderScrollItems('pickerMin', 0, 55, 5);
+            renderScrollItems('pickerWeight', 0.1, 1.0, 0.1, true);
         }
-    }
 
-    // 棋子被放下（移動）時的判斷
-    function onDrop(source, target) {
-        let move = game.move({
-            from: source,
-            to: target,
-            promotion: 'q' // 預設自動升變為皇后
-        });
+        function getPickerValue(elId) {
+            const container = document.getElementById(elId);
+            const rect = container.getBoundingClientRect();
+            const centerX = rect.left + rect.width / 2;
+            const centerY = rect.top + 60; 
+            
+            const hitElement = document.elementFromPoint(centerX, centerY);
+            if (hitElement && hitElement.classList.contains('picker-item')) {
+                const val = hitElement.getAttribute('data-val');
+                if (val && val !== 'none') return parseFloat(val);
+            }
+            
+            const fallbackIndex = Math.round(container.scrollTop / 40);
+            const items = container.querySelectorAll('.picker-item');
+            const validItems = Array.from(items).filter(i => i.getAttribute('data-val') !== 'none');
+            const target = validItems[fallbackIndex] || validItems[0];
+            return parseFloat(target.getAttribute('data-val'));
+        }
 
-        // 走法不合法時彈回
-        if (move === null) return 'snapback';
+        function setPickerValue(elId, value) {
+            const container = document.getElementById(elId);
+            const items = container.querySelectorAll('.picker-item');
+            let targetIndex = -1;
+            let count = 0;
 
-        updateStatus();
-    }
+            for(let i=0; i<items.length; i++) {
+                if(items[i].getAttribute('data-val') === 'none') continue;
+                let v = parseFloat(items[i].getAttribute('data-val'));
+                if(Math.abs(v - value) < 0.01) {
+                    targetIndex = count;
+                    break;
+                }
+                count++;
+            }
+            if(targetIndex === -1) targetIndex = 0;
+            
+            setTimeout(() => {
+                container.scrollTop = targetIndex * 40;
+            }, 60); 
+        }
 
-    function onSnapEnd() {
-        board.position(game.fen());
-    }
+        // ==========================================================================
+        // 特急死線防禦演算系統
+        // ==========================================================================
+        function calculateUrgency(task) {
+            const now = new Date();
+            const targetDate = new Date(task.targetTime);
+            const diffMs = targetDate - now;
+            
+            if (diffMs <= 0) {
+                return { score: 100, diffText: '已逾期' };
+            }
 
-    function updateStatus() {
-        let status = '';
-        let moveColor = game.turn() === 'b' ? '黑方' : '白方';
+            const totalSeconds = Math.floor(diffMs / 1000);
+            const totalMinutes = Math.floor(totalSeconds / 60);
+            const totalHours = Math.floor(totalMinutes / 60);
+            const diffDays = Math.floor(totalHours / 24);
+            const remHours = totalHours % 24;
+            const remMinutes = totalMinutes % 60;
 
-        if (game.in_checkmate()) {
-            status = `遊戲結束！${moveColor} 被將死 (Checkmate) 💀`;
-        } else if (game.in_draw()) {
-            status = '遊戲結束！雙方和棋 (Draw) 🤝';
-        } else {
-            status = `輪到【${moveColor}】進攻`;
-            if (game.in_check()) {
-                status += ' ⚠️ ( 被將軍 Check! )';
+            let diffText = "";
+            if (diffDays > 0) diffText += `${diffDays}天 `;
+            diffText += `${remHours}時 ${remMinutes}分`;
+
+            const exactHours = diffMs / (1000 * 60 * 60);
+            let finalScore = 0;
+
+            if (exactHours <= 24) {
+                const hourProgress = (24 - exactHours) / 24; 
+                const baseUrgentScore = 75 + (hourProgress * 20); 
+                const weightBonus = task.weight * 5; 
+                finalScore = Math.round(baseUrgentScore + weightBonus);
+            } else if (exactHours <= 168) {
+                const dayProgress = (168 - exactHours) / (168 - 24); 
+                const timeFactor = 25 + (dayProgress * 40); 
+                finalScore = Math.round((timeFactor * 0.7) + (task.weight * 35 * (0.5 + dayProgress * 0.5)));
+            } else {
+                finalScore = Math.round(15 + (task.weight * 15));
+            }
+
+            finalScore = Math.max(0, Math.min(100, finalScore));
+
+            return {
+                score: finalScore,
+                diffText: diffText
+            };
+        }
+
+        // ==========================================================================
+        // 分類標籤管理與一般功能邏輯
+        // ==========================================================================
+        function selectTagColor(color) {
+            selectedColor = color;
+            document.querySelectorAll('#colorPicker button').forEach(btn => {
+                if (btn.style.backgroundColor === color || btn.style.backgroundColor === hexToRgb(color)) {
+                    btn.classList.add('border-white'); btn.classList.remove('border-transparent');
+                } else {
+                    btn.classList.remove('border-white'); btn.classList.add('border-transparent');
+                }
+            });
+        }
+        function hexToRgb(hex) {
+            const bigint = parseInt(hex.replace('#', ''), 16);
+            return `rgb(${bigint >> 16 & 255}, ${bigint >> 8 & 255}, ${bigint & 255})`;
+        }
+        function addCustomTag() {
+            const name = document.getElementById('newTagName').value.trim();
+            if(!name) return alert('請輸入標籤名稱！');
+            tags.push({ id: 't_' + Date.now(), text: name, color: selectedColor });
+            localStorage.setItem('task_tags', JSON.stringify(tags));
+            document.getElementById('newTagName').value = '';
+            renderTags();
+        }
+        function deleteTag(id) {
+            tags = tags.filter(t => t.id !== id);
+            localStorage.setItem('task_tags', JSON.stringify(tags));
+            renderTags();
+        }
+        function renderTags() {
+            const container = document.getElementById('tagContainer');
+            const modalContainer = document.getElementById('modalTagSelect');
+            let html = ''; let modalHtml = '';
+            tags.forEach(tag => {
+                html += `<span class="inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium text-gray-900" style="background-color: ${tag.color}">${tag.text}<button onclick="deleteTag('${tag.id}')" class="hover:text-white font-bold ml-1">&times;</button></span>`;
+                modalHtml += `<button onclick="selectModalTag('${tag.id}')" id="m_tag_${tag.id}" class="px-3 py-1.5 rounded-lg text-sm border border-gray-600 text-gray-300 transition-all" data-color="${tag.color}">${tag.text}</button>`;
+            });
+            container.innerHTML = html || '<p class="text-xs text-gray-500">暫無自訂標籤</p>';
+            modalContainer.innerHTML = modalHtml || '<p class="text-xs text-gray-500">請先建立標籤</p>';
+        }
+        function selectModalTag(id) {
+            activeSelectedTagId = id;
+            tags.forEach(tag => {
+                const btn = document.getElementById(`m_tag_${tag.id}`);
+                if(!btn) return;
+                if(tag.id === id) {
+                    btn.style.backgroundColor = tag.color; btn.style.color = '#111827'; btn.classList.add('border-transparent');
+                } else {
+                    btn.style.backgroundColor = 'transparent'; btn.style.color = '#D1D5DB'; btn.classList.remove('border-transparent');
+                }
+            });
+        }
+
+        function toggleModal(show) {
+            const modal = document.getElementById('taskModal');
+            if(show) { modal.classList.remove('hidden'); modal.classList.add('flex'); }
+            else { modal.classList.remove('flex'); modal.classList.add('hidden'); }
+        }
+
+        function openAddModal() {
+            document.getElementById('modalTitle').innerText = "建立新作業/報告";
+            document.getElementById('editingTaskId').value = "";
+            document.getElementById('taskTitle').value = "";
+            activeSelectedTagId = null;
+            renderTags();
+            
+            const now = new Date();
+            setPickerValue('pickerMonth', now.getMonth() + 1);
+            setPickerValue('pickerDay', now.getDate());
+            setPickerValue('pickerHour', now.getHours());
+            setPickerValue('pickerMin', Math.min(55, Math.ceil(now.getMinutes() / 5) * 5));
+            setPickerValue('pickerWeight', 0.5);
+            
+            toggleModal(true);
+        }
+
+        function openEditModal(id) {
+            const task = tasks.find(t => t.id === id);
+            if(!task) return;
+
+            document.getElementById('modalTitle').innerText = "修改項目細節";
+            document.getElementById('editingTaskId').value = task.id;
+            document.getElementById('taskTitle').value = task.title;
+            
+            renderTags();
+            selectModalTag(task.tagId);
+
+            const d = new Date(task.targetTime);
+            setPickerValue('pickerMonth', d.getMonth() + 1);
+            setPickerValue('pickerDay', d.getDate());
+            setPickerValue('pickerHour', d.getHours());
+            setPickerValue('pickerMin', d.getMinutes());
+            setPickerValue('pickerWeight', task.weight);
+
+            toggleModal(true);
+        }
+
+        // 基準年固定為 2026 年
+        function saveTask() {
+            const title = document.getElementById('taskTitle').value.trim();
+            const editingId = document.getElementById('editingTaskId').value;
+            if(!title) return alert('請填寫項目名稱！');
+            if(!activeSelectedTagId) return alert('請選擇一個標籤分類！');
+
+            let chosenMonth = getPickerValue('pickerMonth');
+            let chosenDay = getPickerValue('pickerDay');
+            let chosenHour = getPickerValue('pickerHour');
+            let chosenMin = getPickerValue('pickerMin');
+            let weight = getPickerValue('pickerWeight');
+
+            const targetTime = new Date(2026, chosenMonth - 1, chosenDay, chosenHour, chosenMin, 0).getTime();
+
+            if(editingId) {
+                const idx = tasks.findIndex(t => t.id === editingId);
+                if(idx !== -1) {
+                    tasks[idx].title = title;
+                    tasks[idx].tagId = activeSelectedTagId;
+                    tasks[idx].targetTime = targetTime;
+                    tasks[idx].weight = weight;
+                }
+            } else {
+                tasks.push({
+                    id: 'task_' + Date.now(),
+                    title: title,
+                    tagId: activeSelectedTagId,
+                    targetTime: targetTime,
+                    weight: weight,
+                    createdAt: Date.now()
+                });
+            }
+
+            localStorage.setItem('task_items', JSON.stringify(tasks));
+            toggleModal(false);
+            renderTaskList();
+        }
+
+        function deleteTaskItem(id) {
+            if(confirm('確定要刪除此項目嗎？')) {
+                tasks = tasks.filter(t => t.id !== id);
+                localStorage.setItem('task_items', JSON.stringify(tasks));
+                renderTaskList();
             }
         }
 
-        statusEl.innerText = status;
-    }
+        function renderTaskList() {
+            const listContainer = document.getElementById('taskList');
+            if(tasks.length === 0) {
+                listContainer.innerHTML = `<div class="text-center py-12 bg-gray-800/40 rounded-xl border border-dashed border-gray-700 text-gray-500">目前沒有任何項目。</div>`;
+                return;
+            }
 
-    function resetGame() {
-        game.reset();
-        board.start();
-        updateStatus();
-    }
+            const calculatedTasks = tasks.map(task => {
+                const urgency = calculateUrgency(task);
+                const tag = tags.find(t => t.id === task.tagId) || { text: '未分類', color: '#9CA3AF' };
+                return { ...task, urgency, tag };
+            });
 
-    // 🔴 【核心修復機制】強制將棋子圖片導向雲端 CDN，徹底解決本地開檔破圖問題！
-    function pieceTheme(piece) {
-        // piece 會傳入像 'wP' (白兵), 'bK' (黑王) 這樣的代號
-        // 我們把它對應到 cdnjs 上的標準維基百科棋子風格圖片
-        return 'https://cdnjs.cloudflare.com/ajax/libs/chessboard-js/1.0.0/img/chesspieces/wikipedia/' + piece + '.png';
-    }
+            calculatedTasks.sort((a, b) => b.urgency.score - a.urgency.score);
 
-    const config = {
-        draggable: true,
-        position: 'start',
-        onDragStart: onDragStart,
-        onDrop: onDrop,
-        onSnapEnd: onSnapEnd,
-        pieceTheme: pieceTheme // 注入我們修復後的圖片路徑邏輯
-    };
+            let html = '';
+            calculatedTasks.forEach(item => {
+                let scoreColor = 'text-green-400';
+                let animationClass = ''; // 初始化動畫類名
 
-    board = Chessboard('myBoard', config);
-    updateStatus();
-</script>
+                if(item.urgency.score >= 60) {
+                    scoreColor = 'text-orange-400';
+                }
+                if(item.urgency.score >= 80) {
+                    scoreColor = 'text-red-500 font-black';
+                    animationClass = 'animate-pulse-scale'; // ⭐ 當大於等於 80% 時，掛載自訂的物理心跳縮放動畫
+                }
 
+                html += `
+                    <div class="bg-gray-800 p-5 rounded-xl border border-gray-700 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 hover:border-gray-600 transition">
+                        <div class="space-y-2 w-full md:w-2/3">
+                            <div class="flex items-center gap-2 flex-wrap">
+                                <span class="px-2.5 py-0.5 rounded text-xs font-semibold text-gray-900" style="background-color: ${item.tag.color}">
+                                    ${item.tag.text}
+                                </span>
+                                <h3 class="text-lg font-bold text-white">${item.title}</h3>
+                            </div>
+                            <div class="text-xs text-gray-400 flex gap-4 flex-wrap">
+                                <span>🎯 截止：${new Date(item.targetTime).toLocaleString('zh-TW', {year:'numeric', month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit', hour12:false})}</span>
+                                <span>權重：${item.weight.toFixed(1)}</span>
+                                <span class="text-amber-400 font-medium">⏳ 剩餘：${item.urgency.diffText}</span>
+                            </div>
+                        </div>
+                        
+                        <div class="flex items-center justify-between md:justify-end gap-4 w-full md:w-auto border-t md:border-t-0 pt-3 md:pt-0 border-gray-700">
+                            <div class="text-left md:text-right min-w-[95px]">
+                                <span class="text-[10px] uppercase tracking-wider text-gray-500 block">緊急度百分比</span>
+                                <span class="text-2xl font-mono font-bold ${scoreColor} ${animationClass}">${item.urgency.score}%</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button onclick="openEditModal('${item.id}')" class="bg-gray-700 hover:bg-gray-600 text-gray-200 px-3 py-1.5 rounded-lg text-xs font-medium transition">
+                                    ✏️ 編輯
+                                </button>
+                                <button onclick="deleteTaskItem('${item.id}')" class="bg-red-950/40 hover:bg-red-900/60 text-red-400 px-3 py-1.5 rounded-lg text-xs transition">
+                                    🗑️ 刪除
+                                </button>
+                            </div>
+                        </div>
+                    </div>`;
+            });
+            listContainer.innerHTML = html;
+        }
+
+        window.onload = function() {
+            initPickers();
+            renderTags();
+            renderTaskList();
+            setInterval(renderTaskList, 30000);
+        };
+    </script>
 </body>
 </html>
